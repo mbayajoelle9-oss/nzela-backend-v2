@@ -4,10 +4,8 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    
     "start": "node server.js",
-    "dev":    "nodemon server.js"
-    
+    "dev": "nodemon server.js"
   },
   "keywords": [],
   "author": "",
@@ -20,8 +18,14 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "express-validator": "^7.3.2",
+    "google-auth-library": "^10.9.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.6.2",
+    "node-fetch": "^3.3.2",
+    "passport": "^0.7.0",
+    "passport-facebook": "^3.0.0",
+    "passport-google-oauth20": "^2.0.0",
+    "passport-jwt": "^4.0.1",
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
