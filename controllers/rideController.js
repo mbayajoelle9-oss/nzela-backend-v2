@@ -120,10 +120,55 @@ const updateRideStatus = async (req, res) => {
   }
 };
 
+
+// @desc    Récupère les destinations récentes de l'utilisateur (dédupliquées)
+// @route   GET /api/rides/recent
+const getRecentDestinations = async (req, res) => {
+  try {
+    const rides = await Ride.find({
+      passengerId: req.userId,
+      status: 'completed',
+      'destination.address': { $exists: true, $ne: '' },
+    })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .select('destination duration createdAt');
+
+    // Déduplique par adresse et garde la version la plus récente
+    const seen = new Set();
+    const destinations = [];
+    for (const ride of rides) {
+      const addr = ride.destination.address;
+      if (addr && !seen.has(addr)) {
+        seen.add(addr);
+        destinations.push({
+          id: ride._id,
+          name: addr.split(',')[0]?.trim() || addr,
+          subtitle: addr,
+          time: ride.duration ? `${ride.duration} min` : '-- min',
+          icon: 'map-marker',
+          lat: ride.destination.lat,
+          lng: ride.destination.lng,
+        });
+      }
+      if (destinations.length >= 5) break;
+    }
+
+    res.json({ success: true, destinations });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   estimatePrice,
   createRide,
   getRideStatus,
   getRideHistory,
-  updateRideStatus
+  updateRideStatus,
+  getRecentDestinations,   // ← AJOUTE cette ligne
 };
+
+
+
+
