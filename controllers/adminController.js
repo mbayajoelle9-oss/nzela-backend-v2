@@ -3,6 +3,7 @@ const Driver = require('../models/Driver');
 const Ride = require('../models/Ride');
 const GoodsOrder = require('../models/GoodsOrder');
 const Suggestion = require('../models/Suggestion');
+const bcrypt = require('bcryptjs');
 
 // ============================================================
 // Middleware : n'autorise que les admins
@@ -159,6 +160,110 @@ const listDrivers = async (req, res) => {
 };
 
 // ============================================================
+// POST /api/admin/drivers
+// Créer un nouveau chauffeur (compte User + doc Driver)
+// ============================================================
+const createDriver = async (req, res) => {
+  try {
+    const {
+      name, email, phone, password,
+      vehicleModel, vehiclePlate, vehicleColor, licenseNumber,
+    } = req.body;
+
+    // Validation
+    if (!name || !email || !phone || !password) {
+      return res.status(400).json({
+        message: 'Nom, email, téléphone et mot de passe sont obligatoires',
+      });
+    }
+    if (!vehicleModel || !vehiclePlate) {
+      return res.status(400).json({
+        message: 'Modèle et plaque du véhicule sont obligatoires',
+      });
+    }
+
+    // Vérifier que l'email/phone n'existe pas déjà
+    const existing = await User.findOne({ $or: [{ email }, { phone }] });
+    if (existing) {
+      return res.status(400).json({
+        message: 'Un utilisateur avec cet email ou téléphone existe déjà',
+      });
+    }
+
+    // Vérifier la plaque
+    const existingPlate = await Driver.findOne({ vehiclePlate });
+    if (existingPlate) {
+      return res.status(400).json({
+        message: 'Un chauffeur avec cette plaque existe déjà',
+      });
+    }
+
+    // 1. Créer le User
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    const user = await User.create({
+      name,
+      email: email.toLowerCase(),
+      phone,
+      password: hashedPassword,
+      role: 'driver',
+      isActive: true,
+    });
+
+    // 2. Créer le doc Driver associé
+    const driver = await Driver.create({
+      userId: user._id,
+      vehicleModel,
+      vehiclePlate,
+      vehicleColor: vehicleColor || 'Non spécifié',
+      licenseNumber: licenseNumber || 'Non spécifié',
+      isOnline: false,
+      status: 'offline',
+    });
+
+    res.status(201).json({
+      success: true,
+      driver: {
+        _id: driver._id,
+        userId: user._id,
+        name: user.name,
+        email: user.email,
+        phone: user.phone,
+        vehicleModel: driver.vehicleModel,
+        vehiclePlate: driver.vehiclePlate,
+      },
+    });
+  } catch (error) {
+    console.error('Erreur création chauffeur:', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ============================================================
+// DELETE /api/admin/drivers/:id
+// Supprimer un chauffeur (et son compte User associé)
+// ============================================================
+const deleteDriver = async (req, res) => {
+  try {
+    const driver = await Driver.findById(req.params.id);
+    if (!driver) {
+      return res.status(404).json({ message: 'Chauffeur non trouvé' });
+    }
+
+    // Supprimer le doc Driver + le user associé
+    await Driver.findByIdAndDelete(req.params.id);
+    if (driver.userId) {
+      await User.findByIdAndDelete(driver.userId);
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ============================================================
 // GET /api/admin/rides
 // Liste des courses avec filtres
 // ============================================================
@@ -298,6 +403,8 @@ module.exports = {
   getStats,
   listUsers,
   listDrivers,
+  createDriver,
+  deleteDriver,
   listRides,
   listGoodsOrders,
   getGoodsOrder,

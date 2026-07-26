@@ -11,6 +11,8 @@ const {
   getGoodsOrder,
   updateUser,
   deleteUser,
+  createDriver,    // ← AJOUTER
+  deleteDriver,    // ← AJOUTER
 } = require('../controllers/adminController');
 
 // Toutes les routes admin nécessitent : (1) un token valide, (2) le rôle admin
@@ -34,5 +36,10 @@ router.get('/rides', listRides);
 // Goods
 router.get('/goods', listGoodsOrders);
 router.get('/goods/:id', getGoodsOrder);
+
+router.post('/drivers', createDriver);
+router.delete('/drivers/:id', deleteDriver);
+
+
 
 module.exports = router;
