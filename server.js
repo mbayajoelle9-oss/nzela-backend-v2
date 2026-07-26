@@ -38,6 +38,10 @@ app.use('/api/drivers', require('./routes/driverRoutes'));
 app.use('/api/suggestions', require('./routes/suggestionRoutes'));
 app.use('/api/goods', require('./routes/goodsRoutes'));
 
+
+// ✅ ADMIN : dashboard, stats, users, drivers, rides, goods (admin uniquement)
+app.use('/api/admin', require('./routes/adminRoutes'));
+
 // Health check
 app.get('/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date() });
