@@ -4,42 +4,50 @@ const { protect } = require('../middleware/authMiddleware');
 const {
   requireAdmin,
   getStats,
-  listUsers,
-  listDrivers,
+  listUsers, updateUser, deleteUser,
+  listDrivers, createDriver, deleteDriver,
   listRides,
-  listGoodsOrders,
-  getGoodsOrder,
-  updateUser,
-  deleteUser,
-  createDriver,    // ← AJOUTER
-  deleteDriver,    // ← AJOUTER
+  listGoodsOrders, getGoodsOrder,
+  listAdmins, createAdmin, updateAdmin, deleteAdmin,
+  changeMyPassword,
+  sendNotification, listNotifications,
 } = require('../controllers/adminController');
 
-// Toutes les routes admin nécessitent : (1) un token valide, (2) le rôle admin
+// Toutes les routes admin nécessitent : (1) token valide, (2) rôle admin
 router.use(protect);
 router.use(requireAdmin);
 
-// Dashboard
+// ---------- Dashboard ----------
 router.get('/stats', getStats);
 
-// Users
+// ---------- Users ----------
 router.get('/users', listUsers);
 router.patch('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 
-// Drivers
+// ---------- Drivers ----------
 router.get('/drivers', listDrivers);
-
-// Rides
-router.get('/rides', listRides);
-
-// Goods
-router.get('/goods', listGoodsOrders);
-router.get('/goods/:id', getGoodsOrder);
-
 router.post('/drivers', createDriver);
 router.delete('/drivers/:id', deleteDriver);
 
+// ---------- Rides ----------
+router.get('/rides', listRides);
 
+// ---------- Goods ----------
+router.get('/goods', listGoodsOrders);
+router.get('/goods/:id', getGoodsOrder);
+
+// ---------- Administrators (nouveau) ----------
+router.get('/administrators', listAdmins);
+router.post('/administrators', createAdmin);
+router.patch('/administrators/:id', updateAdmin);
+router.delete('/administrators/:id', deleteAdmin);
+
+// ---------- Mon compte (nouveau) ----------
+router.patch('/me/password', changeMyPassword);
+
+// ---------- Notifications (nouveau) ----------
+router.get('/notifications', listNotifications);
+router.post('/notifications/broadcast', sendNotification);
 
 module.exports = router;
