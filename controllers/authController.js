@@ -235,10 +235,33 @@ const facebookLogin = async (req, res) => {
   }
 };
 
+// ============================================================
+// EXPO PUSH TOKEN
+// ============================================================
+// Enregistre le token Expo Push pour l'utilisateur connecté
+// Appelé par le mobile au démarrage / après login
+const savePushToken = async (req, res) => {
+  try {
+    const { expoPushToken, platform } = req.body;
+    if (!expoPushToken) {
+      return res.status(400).json({ message: 'Token manquant' });
+    }
+    await User.findByIdAndUpdate(req.userId, {
+      expoPushToken,
+      pushTokenPlatform: platform,
+      pushTokenUpdatedAt: new Date(),
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
   getProfile,
   googleLogin,
   facebookLogin,
+  savePushToken,
 };

@@ -22,8 +22,17 @@ const userSchema = new mongoose.Schema(
     isActive: { type: Boolean, default: true },
     isVerified: { type: Boolean, default: false },
     lastLoginAt: { type: Date },
+
+    // ✅ Notifications push (Expo)
+    expoPushToken: { type: String, default: null },
+    pushTokenPlatform: { type: String, enum: ['ios', 'android', null], default: null },
+    pushTokenUpdatedAt: { type: Date, default: null },
   },
   { timestamps: true } // ✅ ajoute createdAt + updatedAt automatiquement
 );
 
 module.exports = mongoose.model('User', userSchema);
+
+
+
+

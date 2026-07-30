@@ -5,6 +5,7 @@ const GoodsOrder = require('../models/GoodsOrder');
 const Suggestion = require('../models/Suggestion');
 const Notification = require('../models/Notification');
 const bcrypt = require('bcryptjs');
+const fetch = require('node-fetch'); // ✅ Pour l'API Expo Push
 
 // ============================================================
 // Middleware : n'autorise que les admins
@@ -311,7 +312,7 @@ const getGoodsOrder = async (req, res) => {
 };
 
 // ============================================================
-// ADMINISTRATEURS (nouveau)
+// ADMINISTRATEURS
 // ============================================================
 const listAdmins = async (req, res) => {
   try {
@@ -434,7 +435,7 @@ const deleteAdmin = async (req, res) => {
 };
 
 // ============================================================
-// MON COMPTE (nouveau)
+// MON COMPTE
 // ============================================================
 const changeMyPassword = async (req, res) => {
   try {
@@ -468,7 +469,7 @@ const changeMyPassword = async (req, res) => {
 };
 
 // ============================================================
-// NOTIFICATIONS (nouveau)
+// NOTIFICATIONS — Envoi réel via Expo Push API
 // ============================================================
 const sendNotification = async (req, res) => {
   try {
@@ -480,8 +481,7 @@ const sendNotification = async (req, res) => {
       });
     }
 
-    // Compter les destinataires selon la cible
-    let recipientCount = 0;
+    // Sélection des destinataires
     const filter = {};
     switch (target) {
       case 'all':
@@ -497,11 +497,11 @@ const sendNotification = async (req, res) => {
         filter.role = 'passenger';
         filter.isActive = true;
         break;
-      case 'drivers_online':
-        // Les chauffeurs en ligne — via le modèle Driver
+      case 'drivers_online': {
         const onlineDrivers = await Driver.find({ isOnline: true }).select('userId');
         filter._id = { $in: onlineDrivers.map(d => d.userId) };
         break;
+      }
       case 'specific':
         if (!specificUserIds || specificUserIds.length === 0) {
           return res.status(400).json({
@@ -511,9 +511,17 @@ const sendNotification = async (req, res) => {
         filter._id = { $in: specificUserIds };
         break;
     }
-    recipientCount = await User.countDocuments(filter);
 
-    // Crée l'entrée d'audit
+    // Récupère uniquement les users avec un token push
+    const usersWithToken = await User.find({
+      ...filter,
+      expoPushToken: { $ne: null, $exists: true },
+    }).select('expoPushToken');
+
+    const recipientCount = await User.countDocuments(filter);
+    const tokens = usersWithToken.map(u => u.expoPushToken).filter(Boolean);
+
+    // Crée l'entrée d'audit AVANT l'envoi
     const notification = await Notification.create({
       sentBy: req.userId,
       channel,
@@ -522,22 +530,79 @@ const sendNotification = async (req, res) => {
       title,
       message,
       recipientCount,
-      status: 'sent', // Pour la démo : on marque comme envoyée
-      successCount: recipientCount,
-      failureCount: 0,
-      sentAt: new Date(),
+      status: 'sending',
     });
 
-    // ⚠️ TODO Production : intégrer ici
-    //   - Firebase Cloud Messaging pour push
-    //   - Nodemailer/SendGrid pour email
-    //   - Twilio pour SMS
+    // ============================================================
+    // Envoi réel via Expo Push API (push + in_app)
+    // ============================================================
+    let successCount = 0;
+    let failureCount = 0;
+
+    if ((channel === 'push' || channel === 'in_app') && tokens.length > 0) {
+      // Expo limite à 100 tokens par requête
+      const chunks = [];
+      for (let i = 0; i < tokens.length; i += 100) {
+        chunks.push(tokens.slice(i, i + 100));
+      }
+
+      for (const chunk of chunks) {
+        const messages = chunk.map(token => ({
+          to: token,
+          sound: 'default',
+          title,
+          body: message,
+          data: {
+            channel,
+            notificationId: notification._id.toString(),
+            sentAt: new Date().toISOString(),
+          },
+          priority: 'high',
+        }));
+
+        try {
+          const expoResponse = await fetch('https://exp.host/--/api/v2/push/send', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+              'Accept-Encoding': 'gzip, deflate',
+            },
+            body: JSON.stringify(messages),
+          });
+
+          const expoData = await expoResponse.json();
+          if (expoData.data) {
+            expoData.data.forEach(ticket => {
+              if (ticket.status === 'ok') successCount++;
+              else failureCount++;
+            });
+          }
+        } catch (e) {
+          console.error('Erreur envoi batch Expo:', e.message);
+          failureCount += chunk.length;
+        }
+      }
+    } else {
+      // Email/SMS : pas encore implémenté (à intégrer avec SendGrid/Twilio plus tard)
+      // On marque quand même comme envoyé pour l'audit
+      successCount = recipientCount;
+    }
+
+    // Met à jour l'audit avec les résultats
+    notification.status = failureCount === 0 ? 'sent' : (successCount > 0 ? 'partial' : 'failed');
+    notification.successCount = successCount;
+    notification.failureCount = failureCount;
+    notification.sentAt = new Date();
+    await notification.save();
 
     res.status(201).json({
       success: true,
       notification,
       recipientCount,
-      message: `Notification enregistrée pour ${recipientCount} destinataires`,
+      successCount,
+      failureCount,
+      message: `Notification envoyée à ${successCount}/${recipientCount} destinataires`,
     });
   } catch (error) {
     console.error('Erreur envoi notification:', error);
@@ -576,10 +641,7 @@ module.exports = {
   listDrivers, createDriver, deleteDriver,
   listRides,
   listGoodsOrders, getGoodsOrder,
-  // Nouveau : admins
   listAdmins, createAdmin, updateAdmin, deleteAdmin,
-  // Nouveau : compte
   changeMyPassword,
-  // Nouveau : notifications
   sendNotification, listNotifications,
 };

@@ -1,7 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const passport = require('passport');
-const { register, login, getProfile, googleLogin, facebookLogin } = require('../controllers/authController');
+const {
+  register,
+  login,
+  getProfile,
+  googleLogin,
+  facebookLogin,
+  savePushToken,
+} = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
 // Routes classiques
@@ -12,6 +19,9 @@ router.get('/profile', protect, getProfile);
 // Routes Google / Facebook (via token ID)
 router.post('/google', googleLogin);
 router.post('/facebook', facebookLogin);
+
+// ✅ Route protégée : enregistre le token Expo Push de l'utilisateur
+router.post('/push-token', protect, savePushToken);
 
 // Routes OAuth avec redirection (passport)
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
