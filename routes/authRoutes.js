@@ -11,7 +11,7 @@ const {
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
-// Routes classiques
+
 router.post('/register', register);
 router.post('/login', login);
 router.get('/profile', protect, getProfile);

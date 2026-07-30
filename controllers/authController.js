@@ -9,7 +9,7 @@ const generateToken = (id, role) => {
 };
 
 // ============================================================
-// INSCRIPTION / CONNEXION CLASSIQUE
+
 // ============================================================
 
 const register = async (req, res) => {

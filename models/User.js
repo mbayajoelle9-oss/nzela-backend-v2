@@ -28,7 +28,7 @@ const userSchema = new mongoose.Schema(
     pushTokenPlatform: { type: String, enum: ['ios', 'android', null], default: null },
     pushTokenUpdatedAt: { type: Date, default: null },
   },
-  { timestamps: true } // ✅ ajoute createdAt + updatedAt automatiquement
+  { timestamps: true } 
 );
 
 module.exports = mongoose.model('User', userSchema);
