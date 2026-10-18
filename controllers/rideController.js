@@ -1,7 +1,7 @@
 const Ride = require('../models/Ride');
 const Driver = require('../models/Driver');
 const User = require('../models/User');
-const { calculatePrice } = require('../utils/priceCalculator');
+const { calculatePrice, splitCommission } = require('../utils/priceCalculator');
 const { getDistanceAndDuration } = require('../utils/distanceMatrix');
 
 // @desc    Estimation du prix
@@ -106,6 +106,11 @@ const updateRideStatus = async (req, res) => {
     ride.status = status;
     if (status === 'completed') {
       ride.completedAt = new Date();
+      // Répartition officielle EKOMI (15%) / chauffeur (85%) au moment de la clôture
+      const { commissionRate, ekomiCommission, driverEarnings } = splitCommission(ride.price || 0);
+      ride.commissionRate = commissionRate;
+      ride.ekomiCommission = ekomiCommission;
+      ride.driverEarnings = driverEarnings;
     }
     await ride.save();
     if (ride.driverId && (status === 'completed' || status === 'cancelled')) {

@@ -1,6 +1,7 @@
 const GoodsOrder = require('../models/GoodsOrder');
 const Driver = require('../models/Driver');
 const User = require('../models/User');
+const { splitCommission } = require('../utils/priceCalculator');
 
 // ============================================================
 // UTILITAIRES
@@ -42,6 +43,7 @@ const createGoodsOrder = async (req, res) => {
       description,
       pickup,
       dropoff,
+      receiver,
       price,
       paymentMethod,
     } = req.body;
@@ -56,6 +58,9 @@ const createGoodsOrder = async (req, res) => {
       return res.status(400).json({ message: 'Prix invalide' });
     }
 
+    // Répartition officielle EKOMI DELIVERY : 15% EKOMI / 85% chauffeur-propriétaire
+    const { commissionRate, ekomiCommission, driverEarnings } = splitCommission(price);
+
     const order = await GoodsOrder.create({
       passengerId: req.userId,
       goodsType,
@@ -64,8 +69,12 @@ const createGoodsOrder = async (req, res) => {
       description: description || '',
       pickup,
       dropoff,
+      receiver: receiver || {},
       price,
       priceFormatted: formatPriceCDF(price),
+      commissionRate,
+      ekomiCommission,
+      driverEarnings,
       paymentMethod: paymentMethod || 'cash',
       status: 'pending',
     });

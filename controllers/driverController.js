@@ -82,11 +82,12 @@ const getDriverProfile = async (req, res) => {
       return res.status(404).json({ message: 'Chauffeur non trouvé' });
     }
 
-    // Statistiques
+    // Statistiques — totalEarnings = revenu NET du chauffeur (après commission EKOMI 15%),
+    // pas le prix brut de la course
     const totalTrips = await Ride.countDocuments({ driverId: driver._id, status: 'completed' });
     const totalEarnings = await Ride.aggregate([
       { $match: { driverId: driver._id, status: 'completed' } },
-      { $group: { _id: null, total: { $sum: '$price' } } }
+      { $group: { _id: null, total: { $sum: { $ifNull: ['$driverEarnings', { $multiply: ['$price', 0.85] }] } } } }
     ]);
 
     res.json({
@@ -97,6 +98,45 @@ const getDriverProfile = async (req, res) => {
         totalEarnings: totalEarnings[0]?.total || 0,
         rating: driver.rating
       }
+    });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// @desc    Statistiques du jour (courses, revenus nets, note)
+// @route   GET /api/drivers/stats/today
+const getTodayStats = async (req, res) => {
+  try {
+    const driver = await Driver.findOne({ userId: req.userId });
+    if (!driver) {
+      return res.status(404).json({ message: 'Chauffeur non trouvé' });
+    }
+
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const todayRides = await Ride.find({
+      driverId: driver._id,
+      status: 'completed',
+      completedAt: { $gte: startOfDay },
+    });
+
+    // driverEarnings est déjà le montant NET (après commission EKOMI de 15%),
+    // calculé à la clôture de chaque course — on retombe sur le prix brut
+    // en fallback pour les anciennes courses closes avant ce correctif.
+    const earnings = todayRides.reduce((sum, ride) => {
+      const net = ride.driverEarnings ?? Math.round((ride.price || 0) * 0.85);
+      return sum + net;
+    }, 0);
+
+    res.json({
+      success: true,
+      stats: {
+        rides: todayRides.length,
+        earnings,
+        rating: driver.rating,
+      },
     });
   } catch (error) {
     res.status(500).json({ message: error.message });
@@ -148,41 +188,12 @@ module.exports = {
   updateLocation,
   updateStatus,
   getDriverProfile,
+  getTodayStats,
   getNearbyDrivers
 };
 
-// Commission N'ZELA: 20%
-const COMMISSION_RATE = 0.20;
-
-// Calcul revenu chauffeur
-const calculateDriverEarnings = (ridePrice) => {
-  const commission = ridePrice * COMMISSION_RATE;
-  const driverEarnings = ridePrice - commission;
-
-  return {
-    total: ridePrice,
-    commission: Math.ceil(commission),
-    driverEarnings: Math.ceil(driverEarnings)
-  };
-};
-
-// Exemple: course à 3 500 CDF
-// Commission N'ZELA: 700 CDF
-// Revenu chauffeur: 2 800 CDF
-
-const payoutDrivers = async () => {
-  const completedRides = await Ride.find({
-    status: 'completed',
-    driverPaid: false
-  });
-
-  for (const ride of completedRides) {
-    const earnings = calculateDriverEarnings(ride.price);
-
-    // Transfert Mobile Money
-    await transferToMobileMoney(ride.driverId, earnings.driverEarnings);
-
-    ride.driverPaid = true;
-    await ride.save();
-  }
-};
+// NOTE : le calcul commission EKOMI (15%) / revenu chauffeur (85%) vit maintenant
+// dans utils/priceCalculator.js (splitCommission), appliqué dans rideController.js
+// à la clôture de chaque course — source unique pour Taxi, Transport de biens et Location.
+// L'ancien calcul local à 20% et le payout automatique Mobile Money (jamais branché,
+// `transferToMobileMoney` n'existait pas) ont été retirés pour éviter toute incohérence.

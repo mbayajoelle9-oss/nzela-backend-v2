@@ -35,9 +35,19 @@ const goodsOrderSchema = new mongoose.Schema(
       address: { type: String, required: true },
     },
 
+    // Destinataire du colis (peut différer du client qui paie)
+    receiver: {
+      name: { type: String, default: '' },
+      phone: { type: String, default: '' },
+    },
+
     // Prix
     price: { type: Number, required: true },
     priceFormatted: { type: String },
+    // Répartition EKOMI / chauffeur-propriétaire (modèle économique officiel : 15% / 85%)
+    commissionRate: { type: Number, default: 0.15 },
+    ekomiCommission: { type: Number },
+    driverEarnings: { type: Number },
 
     // Statut de la commande
     status: {

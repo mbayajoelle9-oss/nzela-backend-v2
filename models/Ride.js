@@ -3,7 +3,7 @@ const mongoose = require('mongoose');
 const rideSchema = new mongoose.Schema({
   passengerId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   driverId: { type: mongoose.Schema.Types.ObjectId, ref: 'Driver' },
-  rideType: { type: String, enum: ['classique', 'partagee', 'premium'], required: true },
+  rideType: { type: String, enum: ['moto', 'classique', 'partagee', 'premium'], required: true },
   pickup: {
     lat: { type: Number, required: true },
     lng: { type: Number, required: true },
@@ -17,6 +17,11 @@ const rideSchema = new mongoose.Schema({
   distance: { type: Number }, // en km
   duration: { type: Number }, // en minutes
   price: { type: Number },
+  // Répartition EKOMI / chauffeur (modèle économique officiel : 15% / 85%),
+  // calculée au passage du statut à "completed"
+  commissionRate: { type: Number, default: 0.15 },
+  ekomiCommission: { type: Number },
+  driverEarnings: { type: Number },
   status: { 
     type: String, 
     enum: ['pending', 'accepted', 'ongoing', 'completed', 'cancelled'],
