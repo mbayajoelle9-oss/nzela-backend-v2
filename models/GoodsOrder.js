@@ -16,9 +16,13 @@ const goodsOrderSchema = new mongoose.Schema(
     // Type et caractéristiques du colis
     goodsType: {
       type: String,
-      enum: ['standard', 'fragile', 'urgent'],
+      // standard / intermediaire / full = catégories de véhicule (facturation à l'heure).
+      // fragile / urgent = anciens types, conservés pour les commandes déjà enregistrées.
+      enum: ['standard', 'intermediaire', 'full', 'fragile', 'urgent'],
       required: true,
     },
+    hours: { type: Number, default: 0 },        // durée facturée (heures)
+    priceUSD: { type: Number },                 // prix en USD (tarif de référence)
     weight: { type: Number, default: 0 }, // en kg
     dimensions: { type: String, default: '' }, // ex: "30x20x15 cm"
     description: { type: String, default: '' },

@@ -2,6 +2,9 @@ const GoodsOrder = require('../models/GoodsOrder');
 const Driver = require('../models/Driver');
 const User = require('../models/User');
 const { splitCommission } = require('../utils/priceCalculator');
+const { getPricing, goodsPriceUSD } = require('../utils/pricing');
+
+const HOURLY_CATEGORIES = ['standard', 'intermediaire', 'full'];
 
 // ============================================================
 // UTILITAIRES
@@ -44,15 +47,29 @@ const createGoodsOrder = async (req, res) => {
       pickup,
       dropoff,
       receiver,
-      price,
+      hours,
       paymentMethod,
     } = req.body;
+    let price = req.body.price;
+    let priceUSD;
 
     // Validation
     if (!goodsType || !pickup?.address || !dropoff?.address) {
       return res.status(400).json({
         message: 'Point de collecte, point de livraison et type sont requis',
       });
+    }
+    // Catégories facturées à l'heure : le prix est recalculé ICI à partir de la
+    // tarification paramétrable (on ne fait pas confiance au prix envoyé par l'app).
+    if (HOURLY_CATEGORIES.includes(goodsType)) {
+      const pricing = await getPricing();
+      priceUSD = goodsPriceUSD(pricing, goodsType, hours);
+      if (priceUSD === null) {
+        return res.status(400).json({
+          message: 'Tarif non défini pour cette catégorie, ou durée invalide (minimum 1 heure)',
+        });
+      }
+      price = Math.round(priceUSD * pricing.usdToCdf);
     }
     if (!price || price <= 0) {
       return res.status(400).json({ message: 'Prix invalide' });
@@ -70,6 +87,8 @@ const createGoodsOrder = async (req, res) => {
       pickup,
       dropoff,
       receiver: receiver || {},
+      hours: HOURLY_CATEGORIES.includes(goodsType) ? Math.ceil(Number(hours)) : 0,
+      priceUSD,
       price,
       priceFormatted: formatPriceCDF(price),
       commissionRate,
