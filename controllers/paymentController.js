@@ -2,6 +2,7 @@ const Payment = require('../models/Payment');
 const Ride = require('../models/Ride');
 const User = require('../models/User');
 const axios = require('axios');
+const { verifyWithFlexpay, settleTopup } = require('../utils/wallet');
 
 const FLEXPAY_PAYMENT_URL = process.env.FLEXPAY_PAYMENT_URL;
 const FLEXPAY_CARD_URL = process.env.FLEXPAY_CARD_URL;
@@ -139,6 +140,15 @@ const checkPaymentStatus = async (req, res) => {
     });
 
     const payment = await Payment.findOne({ orderNumber });
+
+    // Recharge de portefeuille : règlement idempotent (vérifié auprès de FlexPay)
+    if (payment && payment.type === 'topup') {
+      const outcome = await verifyWithFlexpay(orderNumber);
+      await settleTopup(orderNumber, outcome);
+      const fresh = await Payment.findById(payment._id);
+      return res.json({ success: true, status: fresh.status === 'completed' ? 'success' : fresh.status });
+    }
+
     if (payment && response.data.status === 'success') {
       payment.status = 'completed';
       await payment.save();
@@ -161,6 +171,13 @@ const paymentCallback = async (req, res) => {
     const payment = await Payment.findOne({ orderNumber: order_number });
     if (!payment) {
       return res.status(404).json({ message: 'Paiement non trouvé' });
+    }
+
+    // Recharge de portefeuille : on ne croit pas le corps de la requête, on interroge FlexPay
+    if (payment.type === 'topup') {
+      const outcome = await verifyWithFlexpay(order_number);
+      await settleTopup(order_number, outcome);
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/result?status=${outcome}&order=${order_number}`);
     }
 
     if (status === 'success' || status === 'successful') {
@@ -190,6 +207,14 @@ const paymentWebhook = async (req, res) => {
     const { order_number, status, transaction_id } = req.body;
 
     const payment = await Payment.findOne({ orderNumber: order_number });
+
+    // Recharge de portefeuille : vérification serveur auprès de FlexPay (le webhook est public)
+    if (payment && payment.type === 'topup') {
+      const outcome = await verifyWithFlexpay(order_number);
+      await settleTopup(order_number, outcome);
+      return res.json({ success: true });
+    }
+
     if (payment) {
       payment.status = status === 'success' ? 'completed' : 'failed';
       payment.transactionId = transaction_id;

@@ -12,6 +12,8 @@ const userSchema = new mongoose.Schema(
       default: 'passenger',
     },
     loyaltyPoints: { type: Number, default: 0 },
+    // Portefeuille Ekomi (en CDF, entier). Modifié uniquement par des $inc atomiques.
+    walletBalance: { type: Number, default: 0 },
 
     // ✅ Champs OAuth social (utilisés par authController.js)
     googleId: { type: String, default: null, index: true, sparse: true },
