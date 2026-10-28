@@ -8,6 +8,8 @@ const {
   googleLogin,
   facebookLogin,
   savePushToken,
+  changePassword,
+  deleteAccount,
 } = require('../controllers/authController');
 const { protect } = require('../middleware/authMiddleware');
 
@@ -22,6 +24,8 @@ router.post('/facebook', facebookLogin);
 
 // ✅ Route protégée : enregistre le token Expo Push de l'utilisateur
 router.post('/push-token', protect, savePushToken);
+router.put('/password', protect, changePassword);
+router.delete('/account', protect, deleteAccount);
 
 // Routes OAuth avec redirection (passport)
 router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));

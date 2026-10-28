@@ -62,6 +62,9 @@ const login = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({ message: 'Email ou mot de passe incorrect' });
     }
+    if (user.isActive === false) {
+      return res.status(403).json({ message: 'Ce compte a été supprimé ou désactivé' });
+    }
 
     res.json({
       success: true,
@@ -257,6 +260,74 @@ const savePushToken = async (req, res) => {
   }
 };
 
+// ============================================================
+// PUT /api/auth/password  { currentPassword, newPassword }
+// Comptes Google/Facebook : pas de mot de passe connu, changement refusé
+// ============================================================
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ message: 'Renseignez les deux mots de passe' });
+    }
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: 'Le nouveau mot de passe doit contenir au moins 6 caractères' });
+    }
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+    if (user.googleId || user.facebookId) {
+      return res.status(400).json({ message: 'Ce compte se connecte avec Google ou Facebook : pas de mot de passe à changer' });
+    }
+    if (!(await bcrypt.compare(currentPassword, user.password))) {
+      return res.status(401).json({ message: 'Mot de passe actuel incorrect' });
+    }
+    user.password = await bcrypt.hash(newPassword, 10);
+    await user.save();
+    res.json({ success: true, message: 'Mot de passe modifié' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// ============================================================
+// DELETE /api/auth/account  { password? }
+// Suppression du compte : les données personnelles sont effacées, l'historique
+// des paiements est conservé sans lien nominatif. Refusé si le portefeuille
+// contient de l'argent (il faut d'abord le transférer).
+// ============================================================
+const deleteAccount = async (req, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'Utilisateur introuvable' });
+
+    const social = !!(user.googleId || user.facebookId);
+    if (!social) {
+      const ok = await bcrypt.compare(String(req.body.password || ''), user.password);
+      if (!ok) return res.status(401).json({ message: 'Mot de passe incorrect' });
+    }
+    if ((user.walletBalance || 0) > 0) {
+      return res.status(400).json({
+        message: `Votre portefeuille contient ${user.walletBalance.toLocaleString('fr-FR')} CDF : transférez-le avant de supprimer le compte`,
+      });
+    }
+
+    const tag = String(user._id);
+    user.name = 'Compte supprimé';
+    user.email = `deleted_${tag}@ekomi.invalid`;
+    user.phone = `deleted_${tag}`;
+    user.password = await bcrypt.hash(tag + Date.now() + Math.random(), 10);
+    user.googleId = null;
+    user.facebookId = null;
+    user.avatar = null;
+    user.expoPushToken = null;
+    user.isActive = false;
+    await user.save();
+    res.json({ success: true, message: 'Compte supprimé' });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -264,4 +335,6 @@ module.exports = {
   googleLogin,
   facebookLogin,
   savePushToken,
+  changePassword,
+  deleteAccount,
 };
